@@ -56,7 +56,16 @@ export function renderPaymentSummary() {
 
   document
     .querySelector(".js-place-order")
-    .addEventListener("click", async () => {
+    .addEventListener("click", async (event) => {
+      const placeOrderButton = event.currentTarget;
+      if (cart.cartItems.length === 0) {
+        return;
+      }
+
+      placeOrderButton.disabled = true;
+      const cartItems = cart.cartItems.map((cartItem) => ({ ...cartItem }));
+      let backendOrder = {};
+
       try {
         const response = await fetch("https://supersimplebackend.dev/orders", {
           method: "POST",
@@ -68,13 +77,24 @@ export function renderPaymentSummary() {
           }),
         });
 
-        const order = await response.json();
-
-        addOrder(order);
+        if (!response.ok) {
+          throw new Error(`Order request failed with status ${response.status}`);
+        }
+        backendOrder = await response.json();
       } catch (error) {
-        console.log("unexpected error, try again later");
+        console.error("Could not sync the order with the backend:", error);
       }
 
-      window.location.href = 'orders.html';
+      const order = {
+        id: backendOrder.id || crypto.randomUUID(),
+        orderTime: backendOrder.orderTime || new Date().toISOString(),
+        totalCostCents: backendOrder.totalCostCents ?? totalCents,
+        products: backendOrder.products || cartItems,
+        cartItems,
+      };
+      addOrder(order);
+      cart.cartItems = [];
+      cart.saveToStorage();
+      window.location.href = "orders.html";
     });
 }
